@@ -1,0 +1,63 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import List
+import datetime
+import random
+
+app = FastAPI(title="AI Expense Tracker API")
+
+# ---- Data Models ----
+class Transaction(BaseModel):
+    id: int | None = None
+    date: datetime.date
+    description: str
+    amount: float
+    category: str | None = None
+
+class Prediction(BaseModel):
+    month: str
+    predicted: float
+
+# ---- In-memory DB (demo only) ----
+transactions: List[Transaction] = []
+
+# ---- Categorization ----
+def categorize(description: str) -> str:
+    d = description.lower()
+    if "starbucks" in d or "cafe" in d: return "EatingOut"
+    if "grocery" in d or "market" in d: return "Groceries"
+    if "rent" in d: return "Rent"
+    if "netflix" in d or "spotify" in d: return "Subscriptions"
+    if "amazon" in d: return "Shopping"
+    return "Other"
+
+# ---- Endpoints ----
+@app.get("/")
+def root():
+    return {"message": "AI Expense Tracker Backend is running"}
+
+@app.post("/transactions", response_model=Transaction)
+def add_transaction(tx: Transaction):
+    tx.id = len(transactions) + 1
+    tx.category = categorize(tx.description)
+    transactions.append(tx)
+    return tx
+
+@app.get("/transactions", response_model=List[Transaction])
+def list_transactions():
+    return transactions
+
+@app.get("/predict", response_model=List[Prediction])
+def predict_spending(months: int = 6):
+    if not transactions:
+        return []
+    avg = sum([t.amount for t in transactions]) / len(transactions)
+    predictions = []
+    for i in range(1, months + 1):
+        predictions.append(
+            Prediction(
+                month=f"2025-{str(i).zfill(2)}",
+                predicted=round(avg * (1 + 0.05 * i + random.uniform(-0.02, 0.02)), 2),
+            )
+        )
+    return predictions
